@@ -2,5 +2,5 @@
   "name": "agent-ticks",
   "version": "0.1.0",
   "description": "Delivers due items from a durable on-disk spool as one prompt when the session is idle",
-  "author": { "name": "<YOUR NAME>" }
+  "author": { "name": "Jaymin West" }
 }
