@@ -1,0 +1,31 @@
+#!/bin/zsh
+# agent-loop: keep one Claude Code session alive. Runs in a herdr pane
+# (agent-ensure starts it). Resumes the same session id across restarts, so it
+# stays one conversation; agent-rotate clears the id to start a fresh one.
+# Extra args are passed to claude.
+emulate -L zsh
+kit=${0:A:h:h}; source "$kit/lib/env.zsh"
+export AGENT_TICKS_CONSUMER=1   # this session (and only this one) drains the spool
+mkdir -p "$AGENT_HOME"
+# A dedicated cwd, not ~: Claude Code never persists trust for the home dir, so
+# every fresh session would stop at the trust dialog. Trust $AGENT_HOME once.
+cd "$AGENT_HOME" || exit 1
+transcripts="$HOME/.claude/projects/${AGENT_HOME//[^A-Za-z0-9]/-}"
+settings="${AGENT_CONFIG:h}/settings.json"
+
+while true; do
+  id="$(cat "$AGENT_STATE/session-id" 2>/dev/null)"
+  if [[ -n $id && -e $transcripts/$id.jsonl ]]; then
+    session=(--resume "$id")
+  else
+    id="$(uuidgen | tr A-Z a-z)"
+    print -r -- "$id" > "$AGENT_STATE/session-id"
+    session=(--session-id "$id")
+  fi
+  args=("${session[@]}" --plugin-dir "$kit/plugin" --permission-mode "$AGENT_PERMISSION_MODE")
+  [[ -r $settings ]] && args+=(--settings "$settings")
+  [[ $AGENT_REMOTE_CONTROL == 1 ]] && args+=(--remote-control "$AGENT_NAME")
+  "$CLAUDE_BIN" "${args[@]}" "${AGENT_CLAUDE_ARGS[@]}" "$@"
+  print "agent-loop: claude exited ($?), restarting in 10s"
+  sleep 10
+done

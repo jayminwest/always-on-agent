@@ -1,0 +1,14 @@
+# ~/.config/always-on-agent/config: sourced (zsh) by every agent-* script.
+# Everything is optional; the values shown are the defaults.
+
+# AGENT_NAME=agent                                  # herdr workspace label
+# AGENT_HOME=$HOME/agent                            # session cwd: CLAUDE.md, handoff.md
+# AGENT_STATE=$HOME/.local/state/always-on-agent
+# AGENT_TICKS_DIR=$AGENT_STATE/spool
+# AGENT_PERMISSION_MODE=auto
+# AGENT_REMOTE_CONTROL=0                            # 1: reach it from claude.ai/code + the mobile app
+# AGENT_CLAUDE_ARGS=()                              # extra flags for claude, e.g. a channel plugin:
+# AGENT_CLAUDE_ARGS=(--channels plugin:imessage@claude-plugins-official)
+
+# Optional: ~/.config/always-on-agent/settings.json is passed as --settings
+# (permission allow list, hooks) when it exists.

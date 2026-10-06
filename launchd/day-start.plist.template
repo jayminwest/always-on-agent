@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- [day-start] daily at 06:00. StartCalendarInterval fires missed during
+     sleep run once on wake, so on a laptop this lands on the first wake of
+     the day. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.always-on-agent.day-start</string>
+  <key>ProgramArguments</key>
+  <array><string>__KIT__/bin/agent-tick</string><string>day-start</string></array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>__HOME__</string>
+    <key>PATH</key><string>__PATH__</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardOutPath</key><string>__LOGS__/tick.log</string>
+  <key>StandardErrorPath</key><string>__LOGS__/tick.log</string>
+</dict>
+</plist>

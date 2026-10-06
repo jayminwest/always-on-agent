@@ -1,0 +1,106 @@
+#!/usr/bin/env bun
+// agent-remind: queue reminders (and other items) for the agent session.
+// Items land in the spool ($AGENT_TICKS_DIR, default
+// ~/.local/state/always-on-agent/spool); the agent-ticks plugin in that
+// session delivers them once due and idle.
+//
+//   agent-remind "<when>" "<text>"    reminder; prompt reads "[reminder] <text>"
+//                                     when: ISO datetime, "in 2h", "in 1h30m",
+//                                     "tomorrow 9am", "today 17:30", "9am", "noon"
+//   agent-remind --list               pending items, soonest first
+//   agent-remind --cancel <id>        move an item to cancelled/
+//   agent-remind --enqueue <kind> <dedupe_key|-> <text>
+//                                     for scripts: kind tick|reminder|urgent, due now
+//   agent-remind --alive              exit 0 if the plugin's heartbeat is fresh, else 1
+
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+// Resolved from this file's real path, so a symlink in ~/.local/bin still
+// finds the plugin's spool logic.
+import { ALIVE_STALE_S, KINDS, isItemFile, newId, parseItem, parseWhen, type Item, type Kind } from "../plugin/hooks/spool.ts";
+
+const DIR = process.env.AGENT_TICKS_DIR || join(homedir(), ".local/state/always-on-agent/spool");
+
+function write(item: Item) {
+  mkdirSync(DIR, { recursive: true });
+  const tmp = join(DIR, `.${item.id}.tmp`);
+  writeFileSync(tmp, JSON.stringify(item) + "\n");
+  renameSync(tmp, join(DIR, `${item.id}.json`));
+}
+
+function make(kind: Kind, text: string, extra: Partial<Item> = {}): Item {
+  const now = Date.now();
+  const rand = crypto.getRandomValues(new Uint8Array(3)).reduce((s, b) => s + b.toString(16).padStart(2, "0"), "");
+  return { id: newId(now, rand), text, kind, created_at: new Date(now).toISOString(), ...extra };
+}
+
+function pending(): Item[] {
+  if (!existsSync(DIR)) return [];
+  const out: Item[] = [];
+  for (const name of readdirSync(DIR)) {
+    if (!isItemFile(name)) continue;
+    try {
+      const it = parseItem(readFileSync(join(DIR, name), "utf8"));
+      if (it) out.push(it);
+    } catch {}
+  }
+  return out.sort((a, b) => (a.due_at ?? a.created_at).localeCompare(b.due_at ?? b.created_at));
+}
+
+function alive(): boolean {
+  try {
+    return (Date.now() - statSync(join(DIR, ".mod-alive")).mtimeMs) / 1000 < ALIVE_STALE_S;
+  } catch {
+    return false;
+  }
+}
+
+const fmt = (iso: string) => new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+const die = (msg: string, code = 2): never => { console.error(msg); process.exit(code); };
+const USAGE = 'usage: agent-remind "<when>" "<text>" | --list | --cancel <id> | --enqueue <kind> <dedupe_key|-> <text> | --alive';
+
+const args = process.argv.slice(2);
+switch (args[0]) {
+  case "--list": {
+    const items = pending();
+    if (!items.length) console.log("nothing pending");
+    for (const i of items) console.log(`${i.id}  ${i.due_at ? fmt(i.due_at) : "now"}  ${i.kind}  ${i.text}`);
+    if (!alive()) console.log("(plugin heartbeat is stale: items wait until the agent session is running)");
+    break;
+  }
+  case "--cancel": {
+    const id = args[1] ?? die(USAGE);
+    if (!/^[\w-]+$/.test(id)) die(`bad id ${id}`);
+    const src = join(DIR, `${id}.json`);
+    if (!existsSync(src)) die(`no pending item ${id}`, 1);
+    mkdirSync(join(DIR, "cancelled"), { recursive: true });
+    renameSync(src, join(DIR, "cancelled", `${id}.json`));
+    console.log(`cancelled ${id}`);
+    break;
+  }
+  case "--enqueue": {
+    const [, kind, key, ...rest] = args;
+    const text = rest.join(" ").trim();
+    if (!KINDS.includes(kind as Kind) || !key || !text) die(USAGE);
+    const item = make(kind as Kind, text, key === "-" ? {} : { dedupe_key: key });
+    write(item);
+    console.log(item.id);
+    break;
+  }
+  case "--alive":
+    process.exit(alive() ? 0 : 1);
+  case undefined:
+  case "-h":
+  case "--help":
+    die(USAGE, args[0] ? 0 : 2);
+  default: {
+    if (args.length < 2) die(USAGE);
+    const due = parseWhen(args[0], Date.now()) ?? die(`can't parse when: ${args[0]}`);
+    const text = args.slice(1).join(" ").trim() || die(USAGE);
+    const item = make("reminder", `[reminder] ${text}`, { due_at: new Date(due).toISOString() });
+    write(item);
+    console.log(`${item.id}  due ${fmt(item.due_at!)}`);
+    if (!alive()) console.log("(plugin heartbeat is stale: it fires once the agent session is running)");
+  }
+}

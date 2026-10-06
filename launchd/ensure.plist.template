@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Keeps agent-loop running: at load and every 2 min. StartInterval fires
+     missed during sleep are skipped, which is fine here. AbandonProcessGroup
+     lets the herdr server that agent-ensure may start outlive the job. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.always-on-agent.ensure</string>
+  <key>ProgramArguments</key>
+  <array><string>__KIT__/bin/agent-ensure</string></array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key><string>__HOME__</string>
+    <key>PATH</key><string>__PATH__</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>120</integer>
+  <key>AbandonProcessGroup</key><true/>
+  <key>StandardOutPath</key><string>__LOGS__/ensure.log</string>
+  <key>StandardErrorPath</key><string>__LOGS__/ensure.log</string>
+</dict>
+</plist>

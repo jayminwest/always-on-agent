@@ -1,0 +1,31 @@
+#!/bin/zsh
+# agent-tick <tag>: queue "[<tag>] since <last-sweep>" in the spool, deduped by
+# tag (missed ticks collapse to one). The plugin delivers it when the session
+# is idle. launchd calls this on a calendar; you can too.
+#
+# Gate: [heartbeat] is skipped until today's [day-start] has run, and for 15 min
+# after it, so a laptop's morning wake gets one prompt, not two.
+emulate -L zsh
+kit=${0:A:h:h}; source "$kit/lib/env.zsh"
+tag="$1"
+[[ $tag =~ '^[a-z0-9-]+$' ]] || { print -u2 "usage: agent-tick <tag>   (e.g. day-start, heartbeat)"; exit 2; }
+say() { print -r -- "$(date '+%F %T') [$tag] $*"; }
+[[ -e $AGENT_STATE/paused ]] && { say "paused, skipped"; exit 0; }
+
+stamp="$AGENT_STATE/day-start-at"
+case $tag in
+  day-start) date +%s > "$stamp" ;;
+  heartbeat)
+    last="$(cat "$stamp" 2>/dev/null)"; last=${last:-0}
+    [[ "$(date -r "$last" +%F)" != "$(date +%F)" ]] && { say "no day-start yet today, skipped"; exit 0; }
+    (( $(date +%s) - last < 900 )) && { say "day-start just ran, skipped"; exit 0; }
+    ;;
+esac
+
+since="$(cat "$AGENT_STATE/last-sweep" 2>/dev/null)"
+text="[$tag] since ${since:-never}"
+if id="$("$BUN_BIN" "$kit/bin/agent-remind" --enqueue tick "$tag" "$text" 2>&1)"; then
+  say "queued $id: $text"
+else
+  say "enqueue failed: $id"; exit 1
+fi

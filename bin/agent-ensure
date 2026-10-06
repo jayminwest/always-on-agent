@@ -1,0 +1,24 @@
+#!/bin/zsh
+# agent-ensure: start agent-loop in a new herdr workspace unless it is already
+# running. launchd runs it at load and every 2 min. `touch $AGENT_STATE/paused`
+# stops it from re-spawning the loop (and stops ticks).
+emulate -L zsh
+kit=${0:A:h:h}; source "$kit/lib/env.zsh"
+[[ -e $AGENT_STATE/paused ]] && exit 0
+/usr/bin/pgrep -qf 'bin/agent-loop( |$)' && exit 0
+
+server_up() { "$HERDR_BIN" status server 2>/dev/null | grep -q 'status: running'; }
+if ! server_up; then
+  # Headless server. The launchd plist sets AbandonProcessGroup so it
+  # survives this script exiting.
+  nohup "$HERDR_BIN" server >>"$AGENT_LOGS/herdr-server.log" 2>&1 </dev/null &!
+  for _ in {1..30}; do server_up && break; sleep 1; done
+  server_up || { print "$(date '+%F %T') herdr server did not come up"; exit 1; }
+fi
+
+mkdir -p "$AGENT_HOME"
+pane="$("$HERDR_BIN" workspace create --label "$AGENT_NAME" --cwd "$AGENT_HOME" --no-focus \
+  | jq -r '.result.root_pane.pane_id // empty')"
+[[ -n $pane ]] || { print "$(date '+%F %T') herdr workspace create failed"; exit 1; }
+"$HERDR_BIN" pane run "$pane" "$kit/bin/agent-loop"
+print "$(date '+%F %T') started agent-loop in herdr pane $pane"
