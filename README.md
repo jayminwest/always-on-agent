@@ -92,10 +92,35 @@ for weekdays only or a different window.
 - **Remote Control (optional).** Set `AGENT_REMOTE_CONTROL=1` to start the
   session with `--remote-control`, then reach it from claude.ai/code or the
   Claude mobile app.
-- **iMessage channel plugin (optional).** I text mine through the official
-  iMessage channel plugin: add it via `AGENT_CLAUDE_ARGS` and configure its
-  allowlist. Note that it reads the Messages database, which needs Full Disk
-  Access for whatever process starts the herdr server.
+- **iMessage (optional).** How I mostly talk to mine. See below.
+
+### iMessage
+
+The official iMessage channel plugin turns texts into prompts for the session
+and gives it a `reply` tool. In `~/.config/always-on-agent/config`:
+
+```zsh
+AGENT_CLAUDE_ARGS=(--channels plugin:imessage@claude-plugins-official)
+export IMESSAGE_ACCESS_MODE=static        # allowlist is fixed; no pairing by text
+export IMESSAGE_APPEND_SIGNATURE=false
+```
+
+Then, once, in a normal `claude` session on that Mac: `/plugin install imessage@claude-plugins-official`, and
+run `/imessage:access` to allowlist your own number. Gotchas I hit:
+
+- **Full Disk Access.** The plugin reads `~/Library/Messages/chat.db`. macOS
+  ties the grant to the process that started the herdr server, so grant it,
+  then restart the herdr server (not just the agent) for it to take effect.
+- **Reply to the full chat id.** Replies need the chat id exactly as it
+  arrives (e.g. `any;-;+15551234567`); a bare number comes back "not
+  allowlisted". Put it in your `CLAUDE.md` so a fresh session gets it right.
+- **Attachments are unreliable.** `reply` with `files` reported success but
+  nothing arrived for me. Have it write long output to a file (or an email
+  draft) and text you the path.
+- **Treat other senders as untrusted.** Keep the allowlist to your own number,
+  and never let a text approve pairings or change access.
+- **Say how you want to be texted.** Without rules it writes reports. Mine says:
+  short, one best option, details in a file, no recaps.
 
 ## Not done
 
